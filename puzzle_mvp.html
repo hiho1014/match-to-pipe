@@ -66,58 +66,7 @@
             border-radius: 50%;
             box-shadow: 0 0 5px #2a2;
         }
-    </style>
-    <!-- PixiJS v7 -->
-    <script src="./pixi.min.js"></script>
-    <!-- GSAP v3 -->
-    <script src="./gsap.min.js"></script>
-</head>
 
-<body>
-    <div id="game-container"></div>
-
-    <!-- Top Stage Indicator -->
-    <div id="top-ui">
-        <div class="stage-container">
-            <div class="stage-box active" data-stage="1">1</div>
-            <div class="stage-box" data-stage="2">2</div>
-            <div class="stage-box" data-stage="3">3</div>
-            <div class="stage-box" data-stage="4">4</div>
-            <div class="stage-box" data-stage="5">5</div>
-        </div>
-    </div>
-
-    <!-- Bottom Letter Collection (Hidden by default) -->
-    <div id="bottom-ui" class="hidden">
-        <div class="collection-container">
-            <div class="letter-slot">
-                <div class="count">0</div>
-                <div class="circle"></div>
-            </div>
-            <div class="letter-slot">
-                <div class="count">0</div>
-                <div class="circle"></div>
-            </div>
-            <div class="letter-slot">
-                <div class="count">0</div>
-                <div class="circle"></div>
-            </div>
-            <div class="letter-slot">
-                <div class="count">0</div>
-                <div class="circle"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="ui-layer">
-        <h1>PIPE SYSTEM : RE-START</h1>
-        <div class="status">
-            <div class="status-dot"></div>
-            CORE PRESSURE: OPTIMAL
-        </div>
-    </div>
-
-    <style>
         /* UI Common Styles */
         #top-ui {
             position: absolute;
@@ -265,10 +214,61 @@
             opacity: 1;
         }
     </style>
+    <!-- PixiJS v7 -->
+    <script src="./pixi.min.js"></script>
+    <!-- GSAP v3 -->
+    <script src="./gsap.min.js"></script>
+</head>
+
+<body>
+    <div id="game-container"></div>
+
+    <!-- Top Stage Indicator -->
+    <div id="top-ui">
+        <div class="stage-container">
+            <div class="stage-box active" data-stage="1">1</div>
+            <div class="stage-box" data-stage="2">2</div>
+            <div class="stage-box" data-stage="3">3</div>
+            <div class="stage-box" data-stage="4">4</div>
+            <div class="stage-box" data-stage="5">5</div>
+        </div>
+    </div>
+
+    <!-- Bottom Letter Collection (Hidden by default) -->
+    <div id="bottom-ui" class="hidden">
+        <div class="collection-container">
+            <div class="letter-slot">
+                <div class="count">0</div>
+                <div class="circle"></div>
+            </div>
+            <div class="letter-slot">
+                <div class="count">0</div>
+                <div class="circle"></div>
+            </div>
+            <div class="letter-slot">
+                <div class="count">0</div>
+                <div class="circle"></div>
+            </div>
+            <div class="letter-slot">
+                <div class="count">0</div>
+                <div class="circle"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <h1>PIPE SYSTEM : RE-START</h1>
+        <div class="status">
+            <div class="status-dot"></div>
+            CORE PRESSURE: OPTIMAL
+        </div>
+    </div>
 
     <script>
+        // ----------------------------------------------------
+        // 1. GAME DATA & CONFIGURATION
+        // ----------------------------------------------------
         const CONFIG = {
-            GRID_SIZE: 11,
             TILE_SIZE: 80,
             PIPE_WIDTH: 24,
             COLORS: {
@@ -284,6 +284,24 @@
             ANIMATION_DURATION: 0.5
         };
 
+        // Stage Configuration (All Grids must be ODD numbers for center Start)
+        // Stage 4 fixed to 13 (Odd) as per user request
+        const STAGE_DATA = [
+            { id: 1, grid: 11, bulbs: 2 }, // Tutorial
+            { id: 2, grid: 11, bulbs: 3 }, // Basic (Same size)
+            { id: 3, grid: 11, bulbs: 4 }, // Trap Intro
+            { id: 4, grid: 13, bulbs: 5 }, // Scale Up (Odd)
+            { id: 5, grid: 13, bulbs: 5 }  // Final (Odd)
+        ];
+
+        // Global State
+        const GAME_STATE = {
+            currentStage: 1
+        };
+
+        // ----------------------------------------------------
+        // 2. PIXIJS CLASSES
+        // ----------------------------------------------------
         class Pipe extends PIXI.Container {
             constructor(x, y, type = [0, 0, 0, 0], isFixed = false) {
                 super();
@@ -303,7 +321,6 @@
 
                 this.draw();
                 this.eventMode = 'static';
-                // Explicit hit area for reliable clicking
                 this.hitArea = new PIXI.Rectangle(-CONFIG.TILE_SIZE / 2, -CONFIG.TILE_SIZE / 2, CONFIG.TILE_SIZE, CONFIG.TILE_SIZE);
                 this.cursor = this.isFixed ? 'default' : 'wrench';
                 this.on('pointerdown', this.onClick.bind(this));
@@ -318,7 +335,6 @@
                 const glowG = new PIXI.Graphics();
                 const detailG = new PIXI.Graphics();
 
-                // Add soft blur to glow for premium "Bloom" effect
                 const bloom = new PIXI.filters.BlurFilter();
                 bloom.blur = 8;
                 glowG.filters = [bloom];
@@ -342,53 +358,45 @@
 
                 directions.forEach((dir, i) => {
                     if (this.arms[i]) {
-                        // 1. Soft Bloom (Under)
                         if (energyColor) {
-                            // Match pipe width for the source, blur creates the spread
                             glowG.lineStyle(CONFIG.PIPE_WIDTH, energyColor, 0.6);
                             glowG.moveTo(0, 0);
                             glowG.lineTo(dir.x, dir.y);
                         }
 
-                        // 2. Base Pipe (Iron)
                         baseG.lineStyle(CONFIG.PIPE_WIDTH, CONFIG.COLORS.IRON);
                         baseG.moveTo(0, 0);
                         baseG.lineTo(dir.x, dir.y);
 
-                        // 3. Texture / Highlight
-                        baseG.lineStyle(halfPipe, 0x000000, 0.2); // Mid shadow
+                        baseG.lineStyle(halfPipe, 0x000000, 0.2);
                         baseG.moveTo(0, 0);
                         baseG.lineTo(dir.x, dir.y);
 
-                        baseG.lineStyle(4, 0xffffff, 0.1); // High edge
+                        baseG.lineStyle(4, 0xffffff, 0.1);
                         const offset = 6;
-                        if (i % 2 === 0) { // Vertical
+                        if (i % 2 === 0) {
                             baseG.moveTo(-offset, 0); baseG.lineTo(-offset, dir.y);
-                        } else { // Horizontal
+                        } else {
                             baseG.moveTo(0, -offset); baseG.lineTo(dir.x, -offset);
                         }
 
-                        // 4. Energy Core (Sharper internal line)
                         if (energyColor) {
-                            baseG.lineStyle(4, energyColor, 1); // Narrower, sharper core
+                            baseG.lineStyle(4, energyColor, 1);
                             baseG.moveTo(0, 0);
                             baseG.lineTo(dir.x, dir.y);
-
-                            // Inner core highlight
                             glowG.lineStyle(1.5, 0xffffff, 0.8);
                             glowG.moveTo(0, 0);
                             glowG.lineTo(dir.x, dir.y);
                         }
 
-                        // 5. Connectors (Flanges)
                         detailG.lineStyle(2, 0x111111);
                         detailG.beginFill(CONFIG.COLORS.IRON);
                         const fw = CONFIG.PIPE_WIDTH + 10;
                         const fh = 8;
-                        if (i % 2 === 0) { // Vertical
+                        if (i % 2 === 0) {
                             const fy = i === 0 ? -armLen : armLen - fh;
                             detailG.drawRoundedRect(-fw / 2, fy, fw, fh, 2);
-                        } else { // Horizontal
+                        } else {
                             const fx = i === 3 ? -armLen : armLen - fh;
                             detailG.drawRoundedRect(fx, -fw / 2, fh, fw, 2);
                         }
@@ -396,16 +404,13 @@
                     }
                 });
 
-                // Center Node
                 if (this.arms.some(a => a === 1)) {
-                    // Hub
                     detailG.lineStyle(2, 0x000000);
                     detailG.beginFill(CONFIG.COLORS.IRON);
                     const hubSize = CONFIG.PIPE_WIDTH + 6;
                     detailG.drawCircle(0, 0, hubSize / 2);
                     detailG.endFill();
 
-                    // Valve/Detail
                     if (!this.isFixed) {
                         detailG.lineStyle(3, 0x000000);
                         detailG.beginFill(CONFIG.COLORS.VALVE);
@@ -422,23 +427,17 @@
                 if (this.isInteracting || this.isFixed) return;
                 this.isInteracting = true;
 
-                // 1. Data Update (Logical Shift)
                 const last = this.arms.pop();
                 this.arms.unshift(last);
 
-                // 2. Visual Animation
                 const targetRotation = this.visuals.rotation + (Math.PI / 2);
                 gsap.to(this.visuals, {
                     rotation: targetRotation,
                     duration: CONFIG.ANIMATION_DURATION,
                     ease: "back.out(1.2)",
                     onComplete: () => {
-                        // 3. Sync Logic & Visuals
-                        // After animation, reset container rotation to 0 
-                        // because draw() will redraw based on the shifted arms.
                         this.visuals.rotation = 0;
                         this.draw();
-
                         this.isInteracting = false;
                         if (this.parent && this.parent.emit) this.parent.emit('pipeRotated');
                     }
@@ -461,34 +460,42 @@
         }
 
         class Grid extends PIXI.Container {
-            constructor(appWidth, appHeight) {
+            constructor(stageConfig) {
                 super();
+                this.stageConfig = stageConfig;
                 this.pipes = [];
-                this.cols = CONFIG.GRID_SIZE;
-                this.rows = CONFIG.GRID_SIZE;
+                this.cols = stageConfig.grid;
+                this.rows = stageConfig.grid;
                 this.markers = {};
 
                 this.pivot.set((this.cols * CONFIG.TILE_SIZE) / 2, (this.rows * CONFIG.TILE_SIZE) / 2);
-                this.x = appWidth / 2;
-                this.y = appHeight / 2;
 
+                // Start is always Center Top
                 this.startPoint = { x: Math.floor(this.cols / 2), y: 0 };
-                this.endPoints = [
-                    { x: this.cols - 1, y: this.rows - 1, color: CONFIG.COLORS.GLOW_CYAN, id: 1, secret: 'R' },
-                    { x: 0, y: this.rows - 1, color: CONFIG.COLORS.GLOW_MAGENTA, id: 2, secret: 'E' }
-                ];
+
+                // Dynamic End Points based on grid size and bulb count config
+                this.endPoints = [];
+                // Simple distribution logic for MVP: Corners and Bottom Edge
+                if (stageConfig.bulbs >= 1) this.endPoints.push({ x: this.cols - 1, y: this.rows - 1, color: CONFIG.COLORS.GLOW_CYAN, id: 1, secret: 'R' });
+                if (stageConfig.bulbs >= 2) this.endPoints.push({ x: 0, y: this.rows - 1, color: CONFIG.COLORS.GLOW_MAGENTA, id: 2, secret: 'E' });
+                if (stageConfig.bulbs >= 3) this.endPoints.push({ x: Math.floor(this.cols / 2), y: this.rows - 1, color: CONFIG.COLORS.GLOW_WHITE, id: 3 });
+                if (stageConfig.bulbs >= 4) this.endPoints.push({ x: 0, y: Math.floor(this.rows / 2), color: 0x00FF00, id: 4 });
+                if (stageConfig.bulbs >= 5) this.endPoints.push({ x: this.cols - 1, y: Math.floor(this.rows / 2), color: 0xFFA500, id: 5 });
 
                 this.initGrid();
                 this.on('pipeRotated', () => this.checkPath());
             }
 
             initGrid() {
-                const firstStep = { x: this.startPoint.x, y: 1 };
-                const path1 = this.generateRandomPath(firstStep, this.endPoints[0]);
-                const path2 = this.generateRandomPath(firstStep, this.endPoints[1]);
+                // Ensure paths exists
                 const pathSet = new Set();
                 pathSet.add(`${this.startPoint.x},${this.startPoint.y}`);
-                [...path1, ...path2].forEach(p => pathSet.add(`${p.x},${p.y}`));
+
+                const firstStep = { x: this.startPoint.x, y: 1 };
+                this.endPoints.forEach(ep => {
+                    const path = this.generateRandomPath(firstStep, ep);
+                    path.forEach(p => pathSet.add(`${p.x},${p.y}`));
+                });
 
                 for (let y = 0; y < this.rows; y++) {
                     this.pipes[y] = [];
@@ -499,7 +506,7 @@
                         const isEnd = this.endPoints.some(ep => ep.x === x && ep.y === y);
 
                         if (isStart) { arms = [0, 0, 1, 0]; isFixed = true; }
-                        else if (y === 0) { arms = [0, 0, 0, 0]; isFixed = true; }
+                        else if (y === 0) { arms = [0, 0, 0, 0]; isFixed = true; } // Top row logic
                         else if (isEnd) { arms = this.getPathArms(x, y, pathSet); isFixed = true; }
                         else if (pathSet.has(`${x},${y}`)) { arms = this.getPathArms(x, y, pathSet); }
                         else {
@@ -508,7 +515,7 @@
                         }
 
                         const pipe = new Pipe(x, y, arms, isFixed);
-                        this.addChild(pipe); // Pipes added first
+                        this.addChild(pipe);
                         this.pipes[y][x] = pipe;
 
                         if (!isFixed && arms.some(a => a === 1)) {
@@ -517,17 +524,13 @@
                                 const last = pipe.arms.pop();
                                 pipe.arms.unshift(last);
                             }
-                            // After pre-shuffling the data, we must redraw to match.
                             pipe.draw();
                         }
                     }
                 }
 
-                // Markers added AFTER pipes.
-                // We want them VISUALLY ON TOP, so we add the layer properly.
-                // Since they have eventMode='none' (set in addMarker), they won't block clicks.
                 const markerLayer = new PIXI.Container();
-                this.addChild(markerLayer); // Add to end (Top Z-Index)
+                this.addChild(markerLayer);
 
                 this.addMarker(this.startPoint.x, this.startPoint.y, 0xFFFF00, "⚡ CORE", 'start', markerLayer);
                 this.endPoints.forEach(ep => this.addMarker(ep.x, ep.y, 0x444444, `EXT ${ep.id}`, `bulb_${ep.id}`, markerLayer, ep.secret));
@@ -568,7 +571,6 @@
 
             addMarker(x, y, color, label, id, layer, secret = '') {
                 const container = new PIXI.Container();
-
                 if (id === 'start') {
                     // --- INDUSTRIAL TRANSFORMER DESIGN ---
                     const w = 160;
@@ -579,23 +581,18 @@
                     container.addChild(gfx);
 
                     // 0. Connection Flange (The "Neck" connecting to pipe)
-                    // Drawn BEFORE shadow/body so it looks behind/attached
-                    const pipeW = 24; // Standard pipe width from config
+                    const pipeW = 24;
                     const flangeW = 34;
-                    const connectorH = 40; // Length to reach center/pipe
 
-                    // Vertical pipe segment extending down from the shifted body
-                    gfx.beginFill(0x222222); // Dark iron
-                    gfx.drawRect(-10, shiftY + h / 2 - 5, 20, 35); // Stem
+                    gfx.beginFill(0x222222);
+                    gfx.drawRect(-10, shiftY + h / 2 - 5, 20, 35);
                     gfx.endFill();
 
-                    // Flange connector at the bottom (near tile center)
                     gfx.lineStyle(2, 0x000000);
                     gfx.beginFill(0x333333);
-                    gfx.drawRoundedRect(-flangeW / 2, 10, flangeW, 12, 3); // Positioned to cover pipe start
+                    gfx.drawRoundedRect(-flangeW / 2, 10, flangeW, 12, 3);
                     gfx.endFill();
 
-                    // Bolts on flange
                     gfx.lineStyle(0);
                     gfx.beginFill(0x777777);
                     gfx.drawCircle(-flangeW / 2 + 5, 16, 2);
@@ -627,34 +624,28 @@
                     gfx.endFill();
 
                     // 3. Main Tank Body (shifted)
-                    gfx.lineStyle(0); // Clear lines
+                    gfx.lineStyle(0);
 
-                    // Drop Shadow for box
                     gfx.beginFill(0x000000, 0.6);
                     gfx.drawRoundedRect(-w / 2 + 8, -h / 2 + 8 + shiftY, w, h, 8);
                     gfx.endFill();
 
-                    // Main Box Color (Industrial Yellow)
                     const yellowColor = 0xF5B041;
                     const darkYellow = 0xD4AC0D;
 
-                    // Base Block
                     gfx.beginFill(darkYellow);
                     gfx.drawRoundedRect(-w / 2, -h / 2 + shiftY, w, h, 6);
                     gfx.endFill();
 
-                    // Front Face
                     gfx.beginFill(yellowColor);
                     gfx.drawRoundedRect(-w / 2 + 4, -h / 2 + 4 + shiftY, w - 8, h - 8, 4);
                     gfx.endFill();
 
                     // 4. Side Cooling Grills (Visual detail)
                     gfx.beginFill(0x000000, 0.2);
-                    // Left grill
                     for (let i = 0; i < 5; i++) {
                         gfx.drawRect(-w / 2 + 10, -h / 2 + 20 + (i * 12) + shiftY, 15, 6);
                     }
-                    // Right grill
                     for (let i = 0; i < 5; i++) {
                         gfx.drawRect(w / 2 - 25, -h / 2 + 20 + (i * 12) + shiftY, 15, 6);
                     }
@@ -666,7 +657,6 @@
                     gfx.drawRect(-30, -20 + plateY, 60, 40);
                     gfx.endFill();
 
-                    // Warning Symbol (Triangle)
                     gfx.beginFill(0x000000);
                     gfx.moveTo(0, -15 + plateY);
                     gfx.lineTo(12, 5 + plateY);
@@ -674,7 +664,6 @@
                     gfx.lineTo(0, -15 + plateY);
                     gfx.endFill();
 
-                    // Warning Text lines
                     gfx.beginFill(0x000000);
                     gfx.drawRect(-25, 10 + plateY, 50, 2);
                     gfx.drawRect(-25, 15 + plateY, 35, 2);
@@ -688,7 +677,6 @@
 
 
                     // 8. Text Label (Floating above)
-                    // Update label position relative to shifted body
                     const stencil = new PIXI.Text("HV-01", {
                         fontFamily: "Arial",
                         fontSize: 10,
@@ -938,8 +926,28 @@
             }
         }
 
+        let app, viewport, grid;
+
+        const loadStage = (stageId) => {
+            GAME_STATE.currentStage = stageId;
+            const config = STAGE_DATA.find(s => s.id === stageId);
+
+            // UI Update
+            document.querySelectorAll('.stage-box').forEach(el => {
+                el.classList.remove('active');
+                if (parseInt(el.dataset.stage) === stageId) el.classList.add('active');
+            });
+
+            // Pixi Grid Reset
+            if (grid) viewport.removeChild(grid);
+            grid = new Grid(config);
+            grid.x = app.screen.width / 2;
+            grid.y = app.screen.height / 2;
+            viewport.addChild(grid);
+        }
+
         const init = () => {
-            const app = new PIXI.Application({
+            app = new PIXI.Application({
                 width: window.innerWidth,
                 height: window.innerHeight,
                 backgroundColor: CONFIG.COLORS.BG,
@@ -947,16 +955,16 @@
                 resizeTo: window
             });
 
-            // Register custom Wrench cursor for PixiJS
             const wrenchCursor = "url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3e%3cpath fill='%23aaa' stroke='%23333' stroke-width='1.5' d='M23.1,3.9c-2.4-2.4-6.2-2.4-8.6,0c-1.8,1.8-2.2,4.6-1.1,6.8L3.1,21c-1.4,1.4-1.4,3.7,0,5.1l2.8,2.8c1.4,1.4,3.7,1.4,5.1,0l10.3-10.3c2.2,1.1,5,0.7,6.8-1.1C30.6,15,30.6,11.3,28.2,8.9L23.1,3.9z M25.6,12.7c-0.8,0.8-2,0.8-2.8,0c-0.8-0.8-0.8-2,0-2.8c0.8-0.8,2-0.8,2.8,0C26.3,10.7,26.3,12,25.6,12.7z'/%3e%3c/svg%3e\") 24 8, auto";
             app.renderer.events.cursorStyles.wrench = wrenchCursor;
 
             document.getElementById('game-container').appendChild(app.view);
-            const viewport = new PIXI.Container();
+            viewport = new PIXI.Container();
             viewport.eventMode = 'static';
             app.stage.addChild(viewport);
-            const grid = new Grid(app.screen.width, app.screen.height);
-            viewport.addChild(grid);
+
+            // Initial Load
+            loadStage(1);
 
             let isDragging = false, dragStart = { x: 0, y: 0 }, dragOffset = { x: 0, y: 0 };
             app.stage.eventMode = 'static';
@@ -981,12 +989,23 @@
             app.view.addEventListener('wheel', (e) => {
                 const s = e.deltaY < 0 ? 1.1 : 0.9;
                 const oldScale = viewport.scale.x;
-                const mouse = app.renderer.events.pointer.global, local = viewport.toLocal(mouse);
-                viewport.scale.set(Math.min(Math.max(oldScale * s, 0.2), 3));
-                viewport.x = mouse.x - local.x * viewport.scale.x;
-                viewport.y = mouse.y - local.y * viewport.scale.y;
+                const newScale = oldScale * s;
+                if (newScale < 0.2 || newScale > 3) return;
+
+                const mouseX = e.clientX - app.screen.width / 2; // Relative to screen center
+                const mouseY = e.clientY - app.screen.height / 2;
+
+                // Simple zoom to center
+                viewport.scale.set(newScale);
             });
-            window.G_VIEWPORT = viewport;
+
+            // UI Interaction
+            document.querySelectorAll('.stage-box').forEach(box => {
+                box.addEventListener('click', () => {
+                    const id = parseInt(box.dataset.stage);
+                    loadStage(id);
+                });
+            });
         };
 
         window.onload = init;
