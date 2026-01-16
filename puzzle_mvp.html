@@ -238,15 +238,24 @@
             rotate90() {
                 if (this.isInteracting || this.isFixed) return;
                 this.isInteracting = true;
+
+                // 1. Data Update (Logical Shift)
                 const last = this.arms.pop();
                 this.arms.unshift(last);
-                const targetRotation = this.visuals.rotation + (Math.PI / 2);
 
+                // 2. Visual Animation
+                const targetRotation = this.visuals.rotation + (Math.PI / 2);
                 gsap.to(this.visuals, {
                     rotation: targetRotation,
                     duration: CONFIG.ANIMATION_DURATION,
                     ease: "back.out(1.2)",
                     onComplete: () => {
+                        // 3. Sync Logic & Visuals
+                        // After animation, reset container rotation to 0 
+                        // because draw() will redraw based on the shifted arms.
+                        this.visuals.rotation = 0;
+                        this.draw();
+
                         this.isInteracting = false;
                         if (this.parent && this.parent.emit) this.parent.emit('pipeRotated');
                     }
@@ -324,8 +333,9 @@
                             for (let r = 0; r < rolls; r++) {
                                 const last = pipe.arms.pop();
                                 pipe.arms.unshift(last);
-                                pipe.visuals.rotation += Math.PI / 2;
                             }
+                            // After pre-shuffling the data, we must redraw to match.
+                            pipe.draw();
                         }
                     }
                 }
