@@ -556,17 +556,38 @@
 
             generateRandomPath(start, end) {
                 let curr = { ...start }, path = [curr], safety = 0;
-                while ((curr.x !== end.x || curr.y !== end.y) && safety++ < 500) {
-                    let moves = [];
-                    if (curr.x < end.x) moves.push({ x: curr.x + 1, y: curr.y });
-                    if (curr.x > end.x) moves.push({ x: curr.x - 1, y: curr.y });
-                    if (curr.y < end.y) moves.push({ x: curr.x, y: curr.y + 1 });
-                    if (curr.y > end.y) moves.push({ x: curr.x, y: curr.y - 1 });
-                    moves = moves.filter(m => m.x >= 0 && m.x < this.cols && m.y > 0 && m.y < this.rows);
-                    if (!moves.length) break;
-                    const next = moves[Math.floor(Math.random() * moves.length)];
-                    if (!path.find(p => p.x === next.x && p.y === next.y)) { path.push(next); curr = next; }
+
+                // 같은 열일 때 우회 포인트 추가
+                const needDetour = (start.x === end.x);
+                let targets = [end]; // 목표 지점 배열
+
+                if (needDetour) {
+                    const detourX = start.x + (Math.random() < 0.5 ? 3 : -3);
+                    const waypoint = {
+                        x: Math.max(1, Math.min(this.cols - 2, detourX)),
+                        y: Math.floor((start.y + end.y) / 2)
+                    };
+                    targets = [waypoint, end]; // 우회 포인트 → 목적지
                 }
+
+                // 각 목표 지점까지 경로 생성
+                for (const target of targets) {
+                    while ((curr.x !== target.x || curr.y !== target.y) && safety++ < 500) {
+                        let moves = [];
+                        if (curr.x < target.x) moves.push({ x: curr.x + 1, y: curr.y });
+                        if (curr.x > target.x) moves.push({ x: curr.x - 1, y: curr.y });
+                        if (curr.y < target.y) moves.push({ x: curr.x, y: curr.y + 1 });
+                        if (curr.y > target.y) moves.push({ x: curr.x, y: curr.y - 1 });
+                        moves = moves.filter(m => m.x >= 0 && m.x < this.cols && m.y > 0 && m.y < this.rows);
+                        if (!moves.length) break;
+                        const next = moves[Math.floor(Math.random() * moves.length)];
+                        if (!path.find(p => p.x === next.x && p.y === next.y)) {
+                            path.push(next);
+                            curr = next;
+                        }
+                    }
+                }
+
                 return path;
             }
 
