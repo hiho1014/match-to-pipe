@@ -278,6 +278,7 @@
                 GLOW_CYAN: 0x00ffff,
                 GLOW_MAGENTA: 0xff00ff,
                 GLOW_WHITE: 0xffffff,
+                GLOW_YELLOW: 0xFFFF00,
                 BG: 0x0a0a0a,
                 VALVE: 0xcc7722
             },
@@ -478,7 +479,7 @@
                 // Simple distribution logic for MVP: Corners and Bottom Edge
                 if (stageConfig.bulbs >= 1) this.endPoints.push({ x: this.cols - 1, y: this.rows - 1, color: CONFIG.COLORS.GLOW_CYAN, id: 1, secret: 'R' });
                 if (stageConfig.bulbs >= 2) this.endPoints.push({ x: 0, y: this.rows - 1, color: CONFIG.COLORS.GLOW_MAGENTA, id: 2, secret: 'E' });
-                if (stageConfig.bulbs >= 3) this.endPoints.push({ x: Math.floor(this.cols / 2), y: this.rows - 1, color: CONFIG.COLORS.GLOW_WHITE, id: 3 });
+                if (stageConfig.bulbs >= 3) this.endPoints.push({ x: Math.floor(this.cols / 2), y: this.rows - 1, color: CONFIG.COLORS.GLOW_YELLOW, id: 3 });
                 if (stageConfig.bulbs >= 4) this.endPoints.push({ x: 0, y: Math.floor(this.rows / 2), color: 0x00FF00, id: 4 });
                 if (stageConfig.bulbs >= 5) this.endPoints.push({ x: this.cols - 1, y: Math.floor(this.rows / 2), color: 0xFFA500, id: 5 });
 
@@ -820,6 +821,10 @@
                         color: color
                     };
                 }
+
+                // Rotate side bulbs (4 & 5) to point outwards
+                if (id === 'bulb_4') container.rotation = Math.PI / 2; // Left side -> Point Left
+                if (id === 'bulb_5') container.rotation = -Math.PI / 2; // Right side -> Point Right
 
                 container.x = x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
                 container.y = y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
