@@ -947,63 +947,84 @@
             }
 
             checkPath() {
+                // 1. Reset all pipes
                 for (let y = 0; y < this.rows; y++) {
                     for (let x = 0; x < this.cols; x++) {
                         this.pipes[y][x].setEnergized(false, []);
                     }
                 }
+
                 const startKey = `${this.startPoint.x},${this.startPoint.y}`;
+
+                // 2. Build Adjacency Graph
                 const adj = new Map();
                 for (let y = 0; y < this.rows; y++) {
                     for (let x = 0; x < this.cols; x++) {
                         const key = `${x},${y}`;
                         adj.set(key, []);
-                        const ns = [{ x, y: y - 1, d: 0, r: 2 }, { x: x + 1, y, d: 1, r: 3 }, { x, y: y + 1, d: 2, r: 0 }, { x: x - 1, y, d: 3, r: 1 }];
+                        // Directions: Up (0), Right (1), Down (2), Left (3)
+                        const ns = [
+                            { x: x, y: y - 1, d: 0, r: 2 },
+                            { x: x + 1, y: y, d: 1, r: 3 },
+                            { x: x, y: y + 1, d: 2, r: 0 },
+                            { x: x - 1, y: y, d: 3, r: 1 }
+                        ];
                         ns.forEach(n => {
                             if (n.x >= 0 && n.x < this.cols && n.y >= 0 && n.y < this.rows) {
-                                if (this.pipes[y][x].arms[n.d] && this.pipes[n.y][n.x].arms[n.r]) adj.get(key).push(`${n.x},${n.y}`);
+                                // Check if current pipe has arm pointing to neighbor AND neighbor has arm pointing back
+                                if (this.pipes[y][x].arms[n.d] && this.pipes[n.y][n.x].arms[n.r]) {
+                                    adj.get(key).push(`${n.x},${n.y}`);
+                                }
                             }
                         });
                     }
                 }
 
-                const visited = new Set([startKey]), q = [startKey];
-                while (q.length) {
-                    const u = q.shift();
-                    (adj.get(u) || []).forEach(v => { if (!visited.has(v)) { visited.add(v); q.push(v); } });
+                // 3. BFS to build Parent Tree (Shortest Path Tree)
+                const parent = new Map(); // Key: child node key, Value: parent node key
+                const visited = new Set([startKey]);
+                const queue = [startKey];
+
+                while (queue.length) {
+                    const u = queue.shift();
+                    const neighbors = adj.get(u) || [];
+                    for (const v of neighbors) {
+                        if (!visited.has(v)) {
+                            visited.add(v);
+                            parent.set(v, u); // Track parent for backtracing
+                            queue.push(v);
+                        }
+                    }
                 }
 
-                const pipeColors = new Map();
+                // 4. Backtrace from each Active Bulb to Start
+                const pipeColors = new Map(); // Key: coordinate, Value: Set of colors
+
                 this.endPoints.forEach(ep => {
                     const bulbKey = `${ep.x},${ep.y}`;
+
                     if (visited.has(bulbKey)) {
+                        // Bulb is connected
                         this.updateMarker(`bulb_${ep.id}`, true, ep.color);
-                        const subNodes = new Set([bulbKey]), bq = [bulbKey];
-                        while (bq.length) {
-                            const u = bq.shift();
-                            (adj.get(u) || []).forEach(v => { if (visited.has(v) && !subNodes.has(v)) { subNodes.add(v); bq.push(v); } });
-                        }
-                        const subAdj = new Map();
-                        subNodes.forEach(u => subAdj.set(u, new Set(adj.get(u).filter(v => subNodes.has(v)))));
-                        let changed = true;
-                        while (changed) {
-                            changed = false;
-                            for (const [u, nbs] of subAdj) {
-                                if (u !== startKey && u !== bulbKey && nbs.size <= 1) {
-                                    nbs.forEach(v => subAdj.get(v).delete(u));
-                                    subAdj.delete(u); changed = true;
-                                }
-                            }
-                        }
-                        for (const u of subAdj.keys()) {
-                            if (!pipeColors.has(u)) pipeColors.set(u, new Set());
-                            pipeColors.get(u).add(ep.color);
+
+                        // Backtrace to valid path
+                        let curr = bulbKey;
+                        // Safety break to prevent infinite loops (though tree structure prevents it)
+                        let safety = 0;
+                        while (curr && safety++ < 1000) {
+                            if (!pipeColors.has(curr)) pipeColors.set(curr, new Set());
+                            pipeColors.get(curr).add(ep.color);
+
+                            if (curr === startKey) break;
+                            curr = parent.get(curr);
                         }
                     } else {
+                        // Bulb is disconnected
                         this.updateMarker(`bulb_${ep.id}`, false);
                     }
                 });
 
+                // 5. Apply Colors to Pipes
                 for (const [key, colors] of pipeColors) {
                     const [px, py] = key.split(',').map(Number);
                     this.pipes[py][px].setEnergized(true, Array.from(colors));
