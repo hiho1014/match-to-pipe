@@ -476,12 +476,65 @@
 
                 // Dynamic End Points based on grid size and bulb count config
                 this.endPoints = [];
-                // Simple distribution logic for MVP: Corners and Bottom Edge
-                if (stageConfig.bulbs >= 1) this.endPoints.push({ x: this.cols - 1, y: this.rows - 1, color: CONFIG.COLORS.GLOW_CYAN, id: 1, secret: 'R' });
-                if (stageConfig.bulbs >= 2) this.endPoints.push({ x: 0, y: this.rows - 1, color: CONFIG.COLORS.GLOW_MAGENTA, id: 2, secret: 'E' });
-                if (stageConfig.bulbs >= 3) this.endPoints.push({ x: Math.floor(this.cols / 2), y: this.rows - 1, color: CONFIG.COLORS.GLOW_YELLOW, id: 3 });
-                if (stageConfig.bulbs >= 4) this.endPoints.push({ x: 0, y: Math.floor(this.rows / 2), color: 0x00FF00, id: 4 });
-                if (stageConfig.bulbs >= 5) this.endPoints.push({ x: this.cols - 1, y: Math.floor(this.rows / 2), color: 0xFFA500, id: 5 });
+
+                // NEW EXT MAPPING (User Request: LT -> LB -> CB -> RB -> RT)
+                // ID 1: Left Top (x=0, y=Mid)
+                // ID 2: Left Bottom (x=0, y=Bottom)
+                // ID 3: Center Bottom (x=Mid, y=Bottom)
+                // ID 4: Right Bottom (x=Right, y=Bottom)
+                // ID 5: Right Top (x=Right, y=Mid)
+
+                // Define all possible candidates with their NEW IDs
+                const allCandidates = [
+                    { x: 0, y: Math.floor(this.rows / 2), color: 0x00FF00, id: 1 },         // ID 1 (LT)
+                    { x: 0, y: this.rows - 1, color: CONFIG.COLORS.GLOW_MAGENTA, id: 2 },   // ID 2 (LB)
+                    { x: Math.floor(this.cols / 2), y: this.rows - 1, color: CONFIG.COLORS.GLOW_YELLOW, id: 3 }, // ID 3 (CB)
+                    { x: this.cols - 1, y: this.rows - 1, color: CONFIG.COLORS.GLOW_CYAN, id: 4 }, // ID 4 (RB)
+                    { x: this.cols - 1, y: Math.floor(this.rows / 2), color: 0xFFA500, id: 5 }   // ID 5 (RT)
+                ];
+
+                // Select candidates based on ORIGINAL Stage Progression logic:
+                // Stage 1 (2 bulbs): RB, LB (IDs 4, 2)
+                // Stage 2 (3 bulbs): RB, LB, CB (IDs 4, 2, 3)
+                // Stage 3 (4 bulbs): RB, LB, CB, LT (IDs 4, 2, 3, 1) - (Original had LT as 4th)
+                // Stage 4 (5 bulbs): RB, LB, CB, LT, RT (IDs 4, 2, 3, 1, 5)
+
+                const activePoints = [];
+                if (stageConfig.bulbs >= 1) activePoints.push(allCandidates.find(c => c.id === 4)); // RB
+                if (stageConfig.bulbs >= 2) activePoints.push(allCandidates.find(c => c.id === 2)); // LB
+                if (stageConfig.bulbs >= 3) activePoints.push(allCandidates.find(c => c.id === 3)); // CB
+                if (stageConfig.bulbs >= 4) activePoints.push(allCandidates.find(c => c.id === 1)); // LT
+                if (stageConfig.bulbs >= 5) activePoints.push(allCandidates.find(c => c.id === 5)); // RT
+
+                // Sort by ID to ensure letters P-I-P-E are assigned in ID order (1->2->3->4->5)
+                activePoints.sort((a, b) => a.id - b.id);
+
+                // Determine "Dud" (Fake) Bulb Index for Stages >= 4
+                // A Dud bulb lights up but has NO letter.
+                let dudId = -1;
+                if (stageConfig.id >= 4) {
+                    // Pick one random ID from the active set to be the Dud
+                    const randomIndex = Math.floor(Math.random() * activePoints.length);
+                    dudId = activePoints[randomIndex].id;
+                }
+
+                // Letters Sequence
+                const letters = ['P', 'I', 'P', 'E'];
+                let letterIdx = 0;
+
+                // Assign letters to non-dud bulbs
+                activePoints.forEach(c => {
+                    if (c.id === dudId) {
+                        c.secret = ''; // Dud
+                    } else {
+                        if (letterIdx < letters.length) {
+                            c.secret = letters[letterIdx++];
+                        } else {
+                            c.secret = ''; // Should not happen for correct configs
+                        }
+                    }
+                    this.endPoints.push(c);
+                });
 
                 this.initGrid();
                 this.on('pipeRotated', () => this.checkPath());
@@ -534,7 +587,11 @@
                 this.addChild(markerLayer);
 
                 this.addMarker(this.startPoint.x, this.startPoint.y, 0xFFFF00, "⚡ CORE", 'start', markerLayer);
-                this.endPoints.forEach(ep => this.addMarker(ep.x, ep.y, 0x444444, `EXT ${ep.id}`, `bulb_${ep.id}`, markerLayer, ep.secret));
+
+                // Use index + 1 for "EXT X" label so they are always 1, 2, 3... regardless of missing IDs
+                this.endPoints.forEach((ep, index) => {
+                    this.addMarker(ep.x, ep.y, 0x444444, `EXT ${index + 1}`, `bulb_${ep.id}`, markerLayer, ep.secret);
+                });
                 this.checkPath();
             }
 
@@ -843,8 +900,10 @@
                     };
                 }
 
-                // Rotate side bulbs (4 & 5) to point outwards
-                if (id === 'bulb_4') container.rotation = Math.PI / 2; // Left side -> Point Left
+                // Rotate side bulbs (1 & 5) to point outwards (Was 4 & 5)
+                // ID 1 is Left Top -> Check ID 1
+                if (id === 'bulb_1') container.rotation = Math.PI / 2; // Left side -> Point Left
+                // ID 5 is Right Top -> Check ID 5
                 if (id === 'bulb_5') container.rotation = -Math.PI / 2; // Right side -> Point Right
 
                 container.x = x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2;
