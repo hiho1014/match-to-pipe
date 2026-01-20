@@ -612,6 +612,22 @@
             }
 
             generateRandomPath(start, end) {
+                // 재시도 로직: 최대 5회까지 경로 생성 시도
+                for (let attempt = 0; attempt < 5; attempt++) {
+                    const result = this._attemptPathGeneration(start, end);
+                    // 경로가 성공적으로 목적지에 도달했는지 확인
+                    if (result.length > 0) {
+                        const lastPoint = result[result.length - 1];
+                        if (lastPoint.x === end.x && lastPoint.y === end.y) {
+                            return result; // 성공
+                        }
+                    }
+                }
+                // 5회 실패 시 fallback: 단순 경로 반환
+                return this._attemptPathGeneration(start, end);
+            }
+
+            _attemptPathGeneration(start, end) {
                 let curr = { ...start }, path = [curr], safety = 0;
 
                 // 같은 열일 때 우회 포인트 추가
@@ -628,20 +644,44 @@
                 }
 
                 // 각 목표 지점까지 경로 생성
-                for (const target of targets) {
+                for (let targetIdx = 0; targetIdx < targets.length; targetIdx++) {
+                    const target = targets[targetIdx];
+                    const isDetourPhase = (needDetour && targetIdx === 0); // 첫 번째 목표가 우회 지점인 경우
+
                     while ((curr.x !== target.x || curr.y !== target.y) && safety++ < 500) {
                         let moves = [];
-                        if (curr.x < target.x) moves.push({ x: curr.x + 1, y: curr.y });
-                        if (curr.x > target.x) moves.push({ x: curr.x - 1, y: curr.y });
-                        if (curr.y < target.y) moves.push({ x: curr.x, y: curr.y + 1 });
-                        if (curr.y > target.y) moves.push({ x: curr.x, y: curr.y - 1 });
-                        moves = moves.filter(m => m.x >= 0 && m.x < this.cols && m.y > 0 && m.y < this.rows);
-                        if (!moves.length) break;
-                        const next = moves[Math.floor(Math.random() * moves.length)];
-                        if (!path.find(p => p.x === next.x && p.y === next.y)) {
-                            path.push(next);
-                            curr = next;
+                        let horizontalMoves = []; // 가로 방향 이동
+                        let verticalMoves = [];   // 세로 방향 이동
+
+                        // 가능한 이동 방향 분류
+                        if (curr.x < target.x) horizontalMoves.push({ x: curr.x + 1, y: curr.y });
+                        if (curr.x > target.x) horizontalMoves.push({ x: curr.x - 1, y: curr.y });
+                        if (curr.y < target.y) verticalMoves.push({ x: curr.x, y: curr.y + 1 });
+                        if (curr.y > target.y) verticalMoves.push({ x: curr.x, y: curr.y - 1 });
+
+                        // 유효한 이동만 필터링
+                        horizontalMoves = horizontalMoves.filter(m =>
+                            m.x >= 0 && m.x < this.cols && m.y > 0 && m.y < this.rows &&
+                            !path.find(p => p.x === m.x && p.y === m.y)
+                        );
+                        verticalMoves = verticalMoves.filter(m =>
+                            m.x >= 0 && m.x < this.cols && m.y > 0 && m.y < this.rows &&
+                            !path.find(p => p.x === m.x && p.y === m.y)
+                        );
+
+                        // 우회 단계에서는 가로 방향 우선 (85% 확률)
+                        if (isDetourPhase && horizontalMoves.length > 0 && Math.random() < 0.85) {
+                            moves = horizontalMoves;
+                        } else {
+                            // 일반적인 경우: 모든 가능한 이동 결합
+                            moves = [...horizontalMoves, ...verticalMoves];
                         }
+
+                        if (!moves.length) break; // 막다른 길
+
+                        const next = moves[Math.floor(Math.random() * moves.length)];
+                        path.push(next);
+                        curr = next;
                     }
                 }
 
